@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "lib": [
+      "es6",
+      "DOM"
+    ],
+    "outDir": "dist",
+    "strict": true,
+    "esModuleInterop": true,
+    "alwaysStrict": true,
+    "strictNullChecks": true,
+    "noImplicitAny": true,
+    "declaration": true
+  },
+  "files": [
+    "src/index.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}
