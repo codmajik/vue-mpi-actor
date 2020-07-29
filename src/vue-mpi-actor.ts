@@ -24,7 +24,10 @@ SOFTWARE.
 */
 
 /* eslint-disable */
-type MpiActorCallback = { id: string; callback: (param: any) => void };
+type MpiActorCallback = {
+  id: string;
+  callback: (param: any, mutable: boolean) => void;
+};
 const _registry: { [index: string]: MpiActorCallback[] } = {};
 
 const _mpiActorComponent: any = {
@@ -50,13 +53,20 @@ const _mpiActorComponent: any = {
 
     _registry[_channel].push({
       id: this.$data.$$mpiActorId,
-      callback: (param: any) => {
-        const arg =
-          this.$props.mutable === true || typeof param !== "object"
-            ? param
-            : Array.isArray(param)
+      callback: (param: any, mutable: boolean) => {
+        let arg: any = param;
+        if (
+          !(
+            mutable === true ||
+            this.$props.mutable === true ||
+            typeof param !== "object"
+          )
+        ) {
+          arg = Array.isArray(param)
             ? Array.from(param)
             : Object.assign({}, param);
+        }
+
         return (this.$data.params = arg);
       },
     });
@@ -70,43 +80,53 @@ const _mpiActorComponent: any = {
     );
   },
   data() {
-    const paramDefault: any = null;
     const _this = this as any;
-
     const slotData = {
-      params: paramDefault,
-      clear: () => (_this.params = paramDefault),
+      params: null,
+      clear: () => (_this.params = null),
     };
 
     Object.defineProperty(slotData, "$$mpiActorId", {
       writable: false,
-      value: `mpi-actor:${(Math.random() *
-        Date.now() *
-        Date.now()).toString(32)}-${Date.now().toString(32)}`,
+      value: `mpi-actor:${(Math.random() * Date.now()).toString(
+        32
+      )}-${Date.now().toString(32)}`,
     });
 
     return slotData;
   },
 };
 
-const _mpiActorSend = (msg: { channel: string; data: any }) => {
+const _mpiActorSend = (msg: {
+  channel: string;
+  data: any;
+  mutable: boolean;
+}) => {
   if (!_registry[msg.channel]) {
-    console.warn(`nobody is waiting for hook ${msg.channel}`);
+    console.warn(`nobody is waiting on channel ${msg.channel}`);
     return;
   }
 
-  _registry[msg.channel]?.forEach((s) => s?.callback(msg.data));
+  _registry[msg.channel]?.forEach((s) =>
+    s?.callback(msg.data, msg.mutable === true)
+  );
 };
 
 export const mpiActorPlugin = {
-  install(v: any, opts: any) {
+  install(v: any, opts: { mutable?: boolean }) {
     v.component("mpi-actor", _mpiActorComponent);
-    v.prototype.$mpiSend = (hook: string, params: any) => {
-      return _mpiActorSend({ channel: hook, data: params });
+
+    v.prototype.$mpiActorSend = (msg: {
+      channel: string;
+      data: any;
+      mutable?: boolean;
+    }) => {
+      return _mpiActorSend({
+        ...msg,
+        mutable: msg.mutable ?? opts.mutable ?? false,
+      });
     };
-    v.prototype.$mpiActorSend = _mpiActorSend;
   },
 };
-
 
 export default mpiActorPlugin;
