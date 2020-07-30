@@ -6,12 +6,13 @@
   "author": "Chinedu Okonkwo <codmajik@gmail.com>",
   "license": "MIT",
   "devDependencies": {
+    "copyfiles": "^2.3.0",
     "typescript": "^3.9.7",
     "vue": "^2.6.11"
   },
   "scripts": {
     "build": "tsc",
-    "prepublish": "tsc"
+    "prepublish": "copyfiles -u 1 ./src/**/*.d.ts dist/"
   },
   "files": [
     "dist"
