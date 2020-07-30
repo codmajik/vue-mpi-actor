@@ -24,12 +24,32 @@ SOFTWARE.
 */
 import { PluginObject } from "vue";
 
-/* eslint-disable */
 type MpiActorCallback = {
   id: string;
   callback: (param: any, mutable: boolean) => void;
 };
 const _registry: { [index: string]: MpiActorCallback[] } = {};
+
+export const mpiActorSend = (msg: {
+  channel: string;
+  data: any;
+  mutable?: boolean;
+}) => {
+  if (!msg?.channel?.trim()?.length)
+    return Promise.reject("error: missing channel");
+
+  const _chan = msg.channel.trim();
+
+  if (!_registry[_chan]) {
+    return Promise.resolve(false);
+  }
+
+  const mutable = msg?.mutable ?? false;
+  _registry[_chan]?.forEach((s) => s?.callback(msg.data, mutable));
+
+  //TODO: Implement a way to respond to this message via this promise
+  return Promise.resolve(true);
+};
 
 export const mpiActorPlugin: PluginObject<{ mutable?: boolean }> = {
   install(v, opts) {
@@ -83,11 +103,6 @@ export const mpiActorPlugin: PluginObject<{ mutable?: boolean }> = {
           (o) => o.id != this.$data.$$mpiActorId
         );
       },
-      methods: {
-        clear() {
-          this.params = null;
-        }
-      },
       data() {
         const _this = this as any;
         const slotData = {
@@ -106,24 +121,16 @@ export const mpiActorPlugin: PluginObject<{ mutable?: boolean }> = {
       },
     });
 
-    v.prototype.$mpiActorSend = (msg: {
+    v.$mpiActorSend = v.prototype.$mpiActorSend = (msg: {
       channel: string;
       data: any;
       mutable?: boolean;
     }) => {
-      if (!msg) return;
-
-      if (!_registry[msg.channel]) {
-        console?.warn(`nobody is waiting on channel ${msg?.channel}`);
-        return;
+      if (msg && opts?.mutable) {
+        msg.mutable = msg?.mutable ?? opts?.mutable ?? false;
       }
 
-      const mutable = msg?.mutable ?? opts?.mutable ?? false;
-
-      _registry[msg.channel]?.forEach((s) => s?.callback(msg.data, mutable));
-
-      //
-      return Promise.resolve(true);
+      return mpiActorSend(msg);
     };
   },
 };
