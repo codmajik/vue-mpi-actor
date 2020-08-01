@@ -68,41 +68,6 @@ export const mpiActorPlugin: PluginObject<{ mutable?: boolean }> = {
         },
         mutable: Boolean,
       },
-      mounted() {
-        const _channel = this.channel;
-        if (!_channel) return;
-
-        _registry[_channel] = _registry[_channel] ?? [];
-
-        _registry[_channel].push({
-          id: this.$data.$$mpiActorId,
-          callback: (param: any, mutable: boolean) => {
-            let arg: any = param;
-            if (
-              !(
-                mutable === true ||
-                this.$props.mutable === true ||
-                typeof param !== "object"
-              )
-            ) {
-              // TODO: deep copy??
-              arg = Array.isArray(param)
-                ? Array.from(param)
-                : Object.assign({}, param);
-            }
-
-            return (this.$data.params = arg);
-          },
-        });
-      },
-      beforeDestroy() {
-        const _channel = this.channel;
-        if (!_channel) return;
-
-        _registry[_channel] = (_registry[_channel] ?? []).filter(
-          (o) => o.id != this.$data.$$mpiActorId
-        );
-      },
       data() {
         const _this = this as any;
         const slotData = {
@@ -118,6 +83,50 @@ export const mpiActorPlugin: PluginObject<{ mutable?: boolean }> = {
         });
 
         return slotData;
+      },
+      watch: {
+        channel: {
+          deep: true,
+          immediate: true,
+          handler(val, oldVal) {
+            this.deregister(oldVal);
+            this.reigster(val);
+          },
+        },
+      },
+      methods: {
+        deregister(_channel: string) {
+          if (!_channel) return;
+
+          _registry[_channel] = (_registry[_channel] ?? []).filter(
+            (o) => o.id != this.$data.$$mpiActorId
+          );
+        },
+        reigster(_channel: string) {
+          if (!_channel) return;
+          _registry[_channel] = _registry[_channel] ?? [];
+
+          _registry[_channel].push({
+            id: this.$data.$$mpiActorId,
+            callback: (param: any, mutable: boolean) => {
+              let arg: any = param;
+              if (
+                !(
+                  mutable === true ||
+                  this.$props.mutable === true ||
+                  typeof param !== "object"
+                )
+              ) {
+                // TODO: deep copy??
+                arg = Array.isArray(param)
+                  ? Array.from(param)
+                  : Object.assign({}, param);
+              }
+
+              return (this.$data.params = arg);
+            },
+          });
+        },
       },
     });
 
