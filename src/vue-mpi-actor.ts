@@ -30,6 +30,17 @@ type MpiActorCallback = {
 };
 const _registry: { [index: string]: MpiActorCallback[] } = {};
 
+const deregister = (_channel: string, id: string) => {
+  if (!_channel || !id) return;
+  _registry[_channel] = (_registry[_channel] ?? []).filter((o) => o.id != id);
+};
+
+const register = (_channel: string, cb: MpiActorCallback) => {
+  if (!_channel) return;
+  _registry[_channel] = _registry[_channel] ?? [];
+  _registry[_channel].push(cb);
+};
+
 export const mpiActorSend = (msg: {
   channel: string;
   data: any;
@@ -88,44 +99,35 @@ export const mpiActorPlugin: PluginObject<{ mutable?: boolean }> = {
         channel: {
           immediate: true,
           handler(val, oldVal) {
-            this.deregister(oldVal);
-            this.register(val);
+            deregister(oldVal, this.$data.$$mpiActorId);
+            register(val, {
+              id: this.$data.$$mpiActorId,
+              callback: (param: any, mutable: boolean) => {
+                let arg: any = param;
+
+                if (
+                  !(
+                    mutable === true ||
+                    this.mutable === true ||
+                    typeof param !== "object"
+                  )
+                ) {
+                  // TODO: deep copy??
+                  arg = Array.isArray(param)
+                    ? Array.from(param)
+                    : Object.assign({}, param);
+                }
+
+                return (this.params = arg);
+              },
+            });
           },
         },
       },
       methods: {
-        deregister(_channel: string) {
-          if (!_channel) return;
-
-          _registry[_channel] = (_registry[_channel] ?? []).filter(
-            (o) => o.id != this.$data.$$mpiActorId
-          );
-        },
-        register(_channel: string) {
-          if (!_channel) return;
-          _registry[_channel] = _registry[_channel] ?? [];
-
-          _registry[_channel].push({
-            id: this.$data.$$mpiActorId,
-            callback: (param: any, mutable: boolean) => {
-              let arg: any = param;
-              
-              if (
-                !(
-                  mutable === true ||
-                  this.mutable === true ||
-                  typeof param !== "object"
-                )
-              ) {
-                // TODO: deep copy??
-                arg = Array.isArray(param)
-                  ? Array.from(param)
-                  : Object.assign({}, param);
-              }
-
-              return (this.$data.params = arg);
-            },
-          });
+        send(data: any) {
+          // TODO: Do we care about the mutability rule here???
+          this.params = data;
         },
       },
     });
