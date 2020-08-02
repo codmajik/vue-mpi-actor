@@ -1,7 +1,7 @@
 /*
 MIT License
 
-Copyright (c) 2020 Vincent Chinedu Okonkwo
+Copyright (c) 2020 Vincent Chinedu Okonkwo (codmajik@gmail.com)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -38,7 +38,10 @@ const _registry: { [index: string]: MpiActorCallback[] } = {};
 
 const deregister = (_channel: string, id: string) => {
   if (!_channel || !id) return;
-  _registry[_channel] = (_registry[_channel] ?? []).filter((o) => o.id != id);
+  const regIdx = (_registry[_channel] ?? []).findIndex((cb) => cb.id != id);
+  if (regIdx > -1) {
+    _registry[_channel].splice(regIdx, 1);
+  }
 };
 
 const register = (_channel: string, cb: MpiActorCallback) => {
@@ -90,7 +93,7 @@ export const mpiActorPlugin: PluginObject<{ mutable?: boolean }> = {
         return this.$scopedSlots?.default?.call(this, {
           params: this.$data.params,
           clear: this.$data.clear,
-          answer: this.$data.responder,
+          result: this.$data.responder,
         }) as any;
       },
       props: {
@@ -126,34 +129,27 @@ export const mpiActorPlugin: PluginObject<{ mutable?: boolean }> = {
             deregister(oldVal, this.$data.$$mpiActorId);
             register(val, {
               id: this.$data.$$mpiActorId,
-              callback: (param: any, mutable: boolean) => {
-                let arg: any = param;
-
-                if (
-                  !(
-                    mutable === true ||
-                    this.mutable === true ||
-                    typeof param !== "object"
-                  )
-                ) {
-                  // TODO: deep copy??
-                  arg = Array.isArray(param)
-                    ? Array.from(param)
-                    : Object.assign({}, param);
-                }
-
-                const resp = responder();
-                this.params = arg;
-                this.responder = resp.action;
-                return resp.value;
-              },
+              callback: this.send.bind(this),
             });
           },
         },
       },
       methods: {
-        send(arg: any) {
-          // TODO: Do we care about the mutability rule here???
+        send(param: any, mutable?: boolean) {
+          let arg: any = param;
+
+          if (
+            !(
+              mutable === true ||
+              this.mutable === true ||
+              typeof param !== "object"
+            )
+          ) {
+            // TODO: deep copy??
+            arg = Array.isArray(param)
+              ? Array.from(param)
+              : Object.assign({}, param);
+          }
 
           const resp = responder();
           this.params = arg;
