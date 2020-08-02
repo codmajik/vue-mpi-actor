@@ -90,7 +90,7 @@ export const mpiActorPlugin: PluginObject<{ mutable?: boolean }> = {
           immediate: true,
           handler(val, oldVal) {
             this.deregister(oldVal);
-            this.reigster(val);
+            this.register(val);
           },
         },
       },
@@ -102,7 +102,7 @@ export const mpiActorPlugin: PluginObject<{ mutable?: boolean }> = {
             (o) => o.id != this.$data.$$mpiActorId
           );
         },
-        reigster(_channel: string) {
+        register(_channel: string) {
           if (!_channel) return;
           _registry[_channel] = _registry[_channel] ?? [];
 
