@@ -26,8 +26,14 @@ import { PluginObject } from "vue";
 
 type MpiActorCallback = {
   id: string;
-  callback: (param: any, mutable: boolean) => void;
+  callback: (param: any, mutable: boolean) => Promise<any>;
 };
+
+type ResponseAction = {
+  resolve: (value?: any) => void;
+  reject: (error?: any) => void;
+};
+
 const _registry: { [index: string]: MpiActorCallback[] } = {};
 
 const deregister = (_channel: string, id: string) => {
@@ -39,6 +45,21 @@ const register = (_channel: string, cb: MpiActorCallback) => {
   if (!_channel) return;
   _registry[_channel] = _registry[_channel] ?? [];
   _registry[_channel].push(cb);
+};
+
+const responder = (): { value: Promise<any>; action: ResponseAction } => {
+  let resolveFn, rejectFn;
+
+  return {
+    value: new Promise((resolve, reject) => {
+      resolveFn = resolve;
+      rejectFn = reject;
+    }),
+    action: {
+      resolve: resolveFn as any,
+      reject: rejectFn as any,
+    },
+  };
 };
 
 export const mpiActorSend = (msg: {
@@ -56,10 +77,9 @@ export const mpiActorSend = (msg: {
   }
 
   const mutable = msg?.mutable ?? false;
-  _registry[_chan]?.forEach((s) => s?.callback(msg.data, mutable));
-
-  //TODO: Implement a way to respond to this message via this promise
-  return Promise.resolve(true);
+  return Promise.race(
+    _registry[_chan]?.map((s) => s?.callback(msg.data, mutable))
+  );
 };
 
 export const mpiActorPlugin: PluginObject<{ mutable?: boolean }> = {
@@ -70,6 +90,7 @@ export const mpiActorPlugin: PluginObject<{ mutable?: boolean }> = {
         return this.$scopedSlots?.default?.call(this, {
           params: this.$data.params,
           clear: this.$data.clear,
+          answer: this.$data.responder,
         }) as any;
       },
       props: {
@@ -82,15 +103,18 @@ export const mpiActorPlugin: PluginObject<{ mutable?: boolean }> = {
       data() {
         const _this = this as any;
         const slotData = {
+          responder: (null as unknown) as ResponseAction,
           params: null,
           clear: () => (_this.params = null),
         };
 
+        const dt = Date.now();
+
         Object.defineProperty(slotData, "$$mpiActorId", {
           writable: false,
-          value: `mpi-actor:${(Math.random() * Date.now()).toString(
-            32
-          )}-${Date.now().toString(32)}`,
+          value: `mpi-actor:${(Math.random() * dt).toString(36)}${dt.toString(
+            36
+          )}`,
         });
 
         return slotData;
@@ -118,16 +142,23 @@ export const mpiActorPlugin: PluginObject<{ mutable?: boolean }> = {
                     : Object.assign({}, param);
                 }
 
-                return (this.params = arg);
+                const resp = responder();
+                this.params = arg;
+                this.responder = resp.action;
+                return resp.value;
               },
             });
           },
         },
       },
       methods: {
-        send(data: any) {
+        send(arg: any) {
           // TODO: Do we care about the mutability rule here???
-          this.params = data;
+
+          const resp = responder();
+          this.params = arg;
+          this.responder = resp.action;
+          return resp.value;
         },
       },
     });
