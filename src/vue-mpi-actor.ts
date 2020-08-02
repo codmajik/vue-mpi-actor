@@ -86,7 +86,6 @@ export const mpiActorPlugin: PluginObject<{ mutable?: boolean }> = {
       },
       watch: {
         channel: {
-          deep: true,
           immediate: true,
           handler(val, oldVal) {
             this.deregister(oldVal);
@@ -110,10 +109,11 @@ export const mpiActorPlugin: PluginObject<{ mutable?: boolean }> = {
             id: this.$data.$$mpiActorId,
             callback: (param: any, mutable: boolean) => {
               let arg: any = param;
+              
               if (
                 !(
                   mutable === true ||
-                  this.$props.mutable === true ||
+                  this.mutable === true ||
                   typeof param !== "object"
                 )
               ) {
