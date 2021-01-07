@@ -22,16 +22,25 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 */
-import { PluginObject } from "vue";
+
+import {
+  defineComponent,
+  onBeforeUnmount,
+  onUpdated,
+  Plugin,
+  readonly,
+  ref,
+  watch,
+} from "vue";
 
 type MpiActorCallback = {
   id: string;
-  callback: (param: any, mutable: boolean) => Promise<any>;
+  callback: (param: any, mutable: boolean) => void;
 };
 
-type ResponseAction = {
-  resolve: (value?: any) => void;
-  reject: (error?: any) => void;
+type ResponseAction<T> = {
+  resolve: (value?: T) => void;
+  reject: (error?: T) => void;
 };
 
 const _registry: { [index: string]: MpiActorCallback[] } = {};
@@ -50,7 +59,7 @@ const register = (_channel: string, cb: MpiActorCallback) => {
   _registry[_channel].push(cb);
 };
 
-const responder = (): { value: Promise<any>; action: ResponseAction } => {
+const responder = <T>(): { value: Promise<any>; action: ResponseAction<T> } => {
   let resolveFn, rejectFn;
 
   return {
@@ -85,81 +94,108 @@ export const mpiActorSend = (msg: {
   );
 };
 
-export const mpiActorPlugin: PluginObject<{ mutable?: boolean }> = {
+export const mpiActorPlugin: Plugin = {
   install(v, opts) {
-    v.component("mpi-actor", {
-      name: "mpi-actor",
-      render(_h: any) {
-        return this.$scopedSlots?.default?.call(this, {
-          params: this.$data.params,
-          clear: this.$data.clear,
-          result: this.$data.responder,
-        }) as any;
-      },
-      props: {
-        channel: {
-          type: String,
-          required: true,
+    const xvalue = (param: any, mutable?: boolean) => {
+      let arg: any = param;
+
+      if (mutable === true && typeof param === "object") {
+        // TODO: deep copy??
+        arg = Array.isArray(param)
+          ? Array.from(param)
+          : Object.assign({}, param);
+      }
+
+      return arg;
+    };
+
+    v.component(
+      "mpi-actor",
+      defineComponent({
+        name: "mpi-actor",
+        render() {
+          return this.$slots?.default({
+            params: this.params,
+            clear: this.clear,
+            result: this.responder,
+          });
         },
-        mutable: Boolean,
-      },
-      data() {
-        const _this = this as any;
-        const slotData = {
-          responder: (null as unknown) as ResponseAction,
-          params: null,
-          clear: () => (_this.params = null),
-        };
+        setup(props) {
+          const dt = Date.now();
+          const params = ref<any>(null);
+          const responder = ref<ResponseAction<any>>();
 
-        const dt = Date.now();
+          const mpiActorId = readonly(
+            ref(
+              `mpi-actor:${(Math.random() * dt).toString(36)}${dt.toString(36)}`
+            )
+          );
 
-        Object.defineProperty(slotData, "$$mpiActorId", {
-          writable: false,
-          value: `mpi-actor:${(Math.random() * dt).toString(36)}${dt.toString(
-            36
-          )}`,
-        });
+          watch(
+            () => props.channel,
+            (val, old) => {
+              if (old) deregister(old, mpiActorId.value);
+              register(val, {
+                id: mpiActorId.value,
+                callback: (msg, mutable) => {
+                  params.value = xvalue(msg, mutable || props.mutable);
+                },
+              });
+            },
+            {
+              immediate: true,
+            }
+          );
 
-        return slotData;
-      },
-      watch: {
-        channel: {
-          immediate: true,
-          handler(val, oldVal) {
-            deregister(oldVal, this.$data.$$mpiActorId);
-            register(val, {
-              id: this.$data.$$mpiActorId,
-              callback: this.send.bind(this),
-            });
+          onBeforeUnmount(() => {
+            if(props.channel) {
+              deregister(props.channel, mpiActorId.value);
+            }
+          });
+
+          return {
+            params,
+            responder,
+            clear: () => (params.value = null),
+          };
+        },
+        props: {
+          channel: {
+            type: String,
+            required: true,
+          },
+          mutable: Boolean,
+        },
+
+        methods: {
+          send(param: any, mutable?: boolean) {
+            let arg: any = param;
+
+            if (
+              !(
+                mutable === true ||
+                this.mutable === true ||
+                typeof param !== "object"
+              )
+            ) {
+              // TODO: deep copy??
+              arg = Array.isArray(param)
+                ? Array.from(param)
+                : Object.assign({}, param);
+            }
+
+            this.params.value = xvalue(param, mutable || this.mutable);
+
+            const resp = responder();
+            this.responder.value = resp.action;
+
+            return resp.value;
           },
         },
-      },
-      methods: {
-        send(param: any, mutable?: boolean) {
-          let arg: any = param;
+      })
+    );
 
-          if (
-            !(
-              mutable === true ||
-              this.mutable === true ||
-              typeof param !== "object"
-            )
-          ) {
-            // TODO: deep copy??
-            arg = Array.isArray(param)
-              ? Array.from(param)
-              : Object.assign({}, param);
-          }
-
-          const resp = responder();
-          this.params = arg;
-          this.responder = resp.action;
-          return resp.value;
-        },
-      },
-    });
-
-    v.$mpiActorSend = v.prototype.$mpiActorSend = (msg: {
+    v.config.globalProperties.$mpiActorSend = (msg: {
       channel: string;
       data: any;
       mutable?: boolean;
