@@ -1,11 +1,11 @@
-import Vue from "vue";
+import {ComponentCustomProps, Component} from "vue";
 
-declare module "vue/types/vue" {
-  interface VueConstructor {
-    $mpiActorSend(msg: { channel: string; data: any; mutable?: boolean }): PromiseLike<any>;
+declare module '@vue/runtime-core' {
+  interface ComponentCustomProperties {
+    $mpiActorSend(msg: { channel: string; data: any; mutable?: boolean }): PromiseLike<boolean>;
   }
 
-  interface Vue {
-    $mpiActorSend(msg: { channel: string; data: any; mutable?: boolean }): PromiseLike<any>;
-  }
+  // interface ComponentCustomProps {
+  //   $mpiActorSend(msg: { channel: string; data: any; mutable?: boolean }): PromiseLike<any>;
+  // }
 }
