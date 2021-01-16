@@ -12,7 +12,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "prepublish": "tsc",
+    "prepublishOnly": "tsc",
     "postbuild": "copyfiles -u 1 ./src/**/*.d.ts dist/",
     "prepare": "copyfiles -u 1 ./src/**/*.d.ts dist/"
   },
