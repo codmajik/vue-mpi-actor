@@ -1,6 +1,6 @@
 {
   "name": "vue-mpi-actor",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "A plugin to allow data isolation via message passing",
   "repository": "https://github.com/codmajik/vue-mpi-actor",
   "author": "Chinedu Okonkwo <codmajik@gmail.com>",
@@ -19,9 +19,6 @@
   "files": [
     "dist"
   ],
-  "main": "dist/vue-mpi-actor.js",
-  "module": "dist/vue-mpi-actor.esm.js",
-  "unpkg": "dist/vue-mpi-actor.min.js",
-  "types": "dist/vue-mpi-actor.d.ts",
-  "jsnext:main": "dist/vue-mpi-actor.js"
+  "main": "dist/index.js",
+  "types": "dist/vue-mpi-actor.d.ts"
 }
